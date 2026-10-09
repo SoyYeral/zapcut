@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es"><head><meta charset="utf-8"><title>ZapCut</title>
+<link rel="stylesheet" href="style.css"></head>
+<body>
+<div class="glow"></div>
+<header>
+  <svg class="logo" viewBox="0 0 48 48"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
+    <rect width="48" height="48" rx="12" fill="url(#g)"/><path d="M27 6L12 27h9l-3 15 18-22H26z" fill="#fff"/></svg>
+  <div><h1>ZapCut <span class="ver">v1.6</span></h1><p class="tag">Edita tu podcast y tus shorts en minutos</p></div>
+</header>
+<div id="selchip" class="chip">Selecciona clips en la secuencia</div>
+
+<nav class="tabs"><button class="tab on" data-t="clean">Clean</button><button class="tab" data-t="reframe">Reframe</button><button class="tab" data-t="viral">Viral</button><button class="tab" data-t="multi">Multicam</button></nav>
+
+<section id="clean">
+  <label class="field">Pista de voz<select id="voice"><option value="all">Todas las seleccionadas</option></select></label>
+
+  <div class="card">
+    <div class="ch"><div><b>Bleep</b><small>Silencia malas palabras sin cortar lo que se dice</small></div><label class="sw"><input type="checkbox" id="tgWords" checked><i></i></label></div>
+    <div class="seg-label">Calidad de voz</div>
+    <div class="seg" id="seg"><button data-v="base">Rápido</button><button data-v="small" class="on">Equilibrado</button><button data-v="medium">Preciso</button></div>
+    <input type="hidden" id="model" value="small">
+    <details open><summary id="wsum">Palabras a silenciar</summary>
+      <div class="wadd"><input id="wnew" placeholder="Agregar palabra (usa * para variantes)" spellcheck="false"><button id="wadd">+</button></div>
+      <div id="wl" class="wl"></div>
+      <div class="wfoot"><small>Desmarca una palabra para dejarla pasar.</small><a id="wreset">Restaurar lista</a></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <div class="ch"><div><b>Silence</b><small>Quita pausas por nivel en dB</small></div><label class="sw"><input type="checkbox" id="tgSil" checked><i></i></label></div>
+    <div class="sl"><span>Umbral</span><input type="range" id="th" min="-60" max="-15" value="-38"><em id="thv">-38 dB</em></div>
+    <label class="chk"><input type="checkbox" id="auto" checked> Auto-detectar umbral</label>
+    <div class="sl"><span>Silencio mínimo</span><input type="range" id="md" min="15" max="150" value="40"><em id="mdv">0.40 s</em></div>
+    <div class="sl"><span>Margen de seguridad</span><input type="range" id="pd" min="0" max="30" value="12"><em id="pdv">120 ms</em></div>
+    <label class="field">Acción<select id="act"><option value="cut">Cortar y juntar</option><option value="mark">Solo marcar (revisar antes)</option></select></label>
+  </div>
+  <div class="card">
+    <div class="ch"><div><b>Habla limpia</b><small>Quita repeticiones, muletillas y frases sin terminar</small></div><label class="sw"><input type="checkbox" id="tgSp" checked><i></i></label></div>
+    <label class="chk"><input type="checkbox" id="spRep" checked> Palabras y frases repetidas</label>
+    <label class="chk"><input type="checkbox" id="spFalse" checked> Frases sin terminar (si se reinician)</label>
+    <label class="chk"><input type="checkbox" id="spFill" checked> Muletillas (se cortan, no se silencian)</label>
+    <details><summary id="fsum">Muletillas</summary>
+      <div class="wadd"><input id="fnew" placeholder="Agregar muletilla (ej: o sea)" spellcheck="false"><button id="fadd">+</button></div>
+      <div id="fl" class="wl"></div>
+      <div class="wfoot"><small>Las palabras normales solo se cortan si van seguidas de pausa o coma.</small><a id="freset">Restaurar</a></div>
+    </details>
+    <label class="field">Acción<select id="spAct"><option value="cut">Cortar y juntar</option><option value="mark">Solo marcar (revisar antes)</option></select></label>
+  </div>
+  <button class="go" id="goClean">Limpiar selección</button>
+</section>
+
+<section id="reframe" hidden>
+  <div class="seg-label">Formato</div>
+  <div class="fmts" id="fmt">
+    <button data-v="9x16" class="on"><i style="--w:9;--h:16"></i><b>9:16</b><small>Reels · TikTok</small></button>
+    <button data-v="4x5"><i style="--w:4;--h:5"></i><b>4:5</b><small>Feed IG</small></button>
+    <button data-v="3x4"><i style="--w:3;--h:4"></i><b>3:4</b><small>Vertical</small></button>
+    <button data-v="1x1"><i style="--w:1;--h:1"></i><b>1:1</b><small>Cuadrado</small></button>
+    <button data-v="16x9"><i style="--w:16;--h:9"></i><b>16:9</b><small>YouTube</small></button>
+  </div>
+  <input type="hidden" id="fmv" value="9x16">
+  <div class="seg-label">Personas en cámara</div>
+  <div class="seg" id="rmode"><button data-v="auto" class="on">Auto</button><button data-v="single">Un hablante</button><button data-v="split">Dividida</button></div>
+  <input type="hidden" id="rmv" value="auto">
+  <p class="hint" id="rhint"></p>
+  <div class="seg-label">Cámara</div>
+  <div class="seg" id="tmode"><button data-v="follow" class="on">Seguir a la persona</button><button data-v="fixed">Cámara fija</button></div>
+  <input type="hidden" id="tmv" value="follow">
+  <p class="hint" id="thint"></p>
+
+  <div class="card" id="zoomCard">
+    <div class="ch"><div><b>Zoom</b><small>Movimiento de cámara sobre el hablante</small></div></div>
+    <div class="seg grid" id="zmode">
+      <button data-v="off" class="on">Sin zoom</button><button data-v="fixed">Fijo</button><button data-v="in">Zoom in</button>
+      <button data-v="out">Zoom out</button><button data-v="dyn">Dinámico</button>
+    </div>
+    <input type="hidden" id="zmv" value="off">
+    <div class="sl" id="zrow"><span>Intensidad</span><input type="range" id="zmax" min="105" max="160" value="125"><em id="zmaxv">125%</em></div>
+    <small id="zhint">El encuadre queda fijo, sin acercamientos.</small>
+  </div>
+
+  <label class="chk" id="swapRow" hidden><input type="checkbox" id="swap"> Intercambiar arriba / abajo</label>
+  <details><summary>Avanzado</summary>
+    <label class="chk"><input type="checkbox" id="conv" checked> Cambiar el tamaño de la secuencia al formato</label>
+    <label class="field">Escalado de medios<select id="sbasis"><option value="native">Píxeles nativos (por defecto)</option><option value="fit">Ajustado al marco</option></select></label>
+  </details>
+  <button class="go" id="goReframe">Reencuadrar</button>
+</section>
+
+<section id="viral" hidden>
+  <div class="card">
+    <div class="ch"><div><b>Momentos virales</b><small>Encuentra los mejores clips y el hook</small></div></div>
+    <div class="seg-label">Duración del clip</div>
+    <div class="seg" id="vlen"><button data-v="s">15–30 s</button><button data-v="m" class="on">30–60 s</button><button data-v="l">60–90 s</button></div>
+    <input type="hidden" id="vlv" value="m">
+    <div class="sl"><span>Cuántos</span><input type="range" id="vn" min="1" max="10" value="5"><em id="vnv">5</em></div>
+    <label class="field">Idioma del audio<select id="vlang"><option value="es">Español</option><option value="en">English</option><option value="auto">Detectar</option></select></label>
+    <label class="chk"><input type="checkbox" id="vmark" checked> Marcar en la secuencia (con nota)</label>
+  </div>
+  <button class="go" id="goViral">Buscar momentos virales</button>
+  <div id="vres"></div>
+</section>
+
+<section id="multi" hidden>
+  <div class="card">
+    <div class="ch"><div><b>Multicámara</b><small>Cambia a la cámara de quien habla</small></div><a id="mcRefresh" class="lnk">Releer</a></div>
+    <div class="seg-label">Cámaras (pistas de video seleccionadas)</div>
+    <div id="mcCams" class="mrows"></div>
+    <div class="seg-label">Audio</div>
+    <div class="seg" id="mcsrc"><button data-v="mix" class="on">Audio mezclado</button><button data-v="mic">Un micro por persona</button></div>
+    <input type="hidden" id="mcsv" value="mix">
+    <div id="mcAud" class="mrows"></div>
+    <small id="mcHint">Selecciona todos los clips de las cámaras y el audio, sincronizados en la secuencia.</small>
+  </div>
+  <div class="card">
+    <div class="ch"><div><b>Ritmo de cortes</b><small>Para que se vea natural, no nervioso</small></div></div>
+    <div class="sl"><span>Plano mínimo</span><input type="range" id="mcShot" min="8" max="40" value="15"><em id="mcShotv">1.5 s</em></div>
+    <div class="sl"><span>Anticipación</span><input type="range" id="mcLead" min="0" max="50" value="20"><em id="mcLeadv">0.20 s</em></div>
+    <div class="sl"><span>Ignorar “mjm”</span><input type="range" id="mcOv" min="3" max="20" value="8"><em id="mcOvv">0.8 s</em></div>
+    <label class="chk"><input type="checkbox" id="mcWide" checked> Plano amplio cuando hablan varios a la vez</label>
+    <label class="chk"><input type="checkbox" id="mcVary"> Plano amplio de respiro en monólogos largos (cada 15 s)</label>
+  </div>
+  <div class="card">
+    <div class="ch"><div><b>Limpiar al mismo tiempo</b><small>Usa los ajustes de la pestaña Clean</small></div></div>
+    <label class="chk"><input type="checkbox" id="mcBleep"> Silenciar malas palabras</label>
+    <label class="chk"><input type="checkbox" id="mcSil"> Cortar silencios</label>
+    <label class="chk"><input type="checkbox" id="mcSp"> Quitar repeticiones, muletillas y frases sin terminar</label>
+    <small>Orden: 1) cámaras, 2) malas palabras, 3) cortes (silencios, repeticiones y muletillas juntos).</small>
+  </div>
+  <button class="go" id="goMulti">Montar multicámara</button>
+</section>
+
+<div class="card prog">
+  <div class="row"><span id="status">Listo</span><span id="pct">0%</span></div>
+  <div class="bar"><div id="fill"></div></div>
+  <div class="stats"><div><b id="n1">0</b><small id="l1">acciones</small></div><div><b id="n2">0:00</b><small>tiempo</small></div></div>
+</div>
+<pre id="log">Esperando…</pre>
+<script src="main.js"></script>
+</body></html>
