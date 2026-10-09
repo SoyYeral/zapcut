@@ -50,12 +50,14 @@ var RHINT = {auto:"Habla una persona: el encuadre la sigue. Hablan dos o más a 
 function canSplitFmt(){ var f = FORMATS[$("fmv").value]; return f[1] >= f[0] * 1.24; }
 function reframeUi(){
   var m = $("rmv").value, split = m === "split";
+  $("smodeRow").hidden = m !== "auto" || !canSplitFmt();
   $("zoomCard").hidden = split; $("swapRow").hidden = m === "single" || !canSplitFmt();
   $("rhint").textContent = RHINT[m] + (canSplitFmt() ? "" : " (Este formato es muy ancho: se usa un solo encuadre.)");
 }
 var THINT = {follow:"El encuadre se mueve para mantener a la persona en el centro.", fixed:"El encuadre no se mueve: queda fijo en la posición de cada persona."};
 function trackUi(){ $("thint").textContent = THINT[$("tmv").value]; }
 segment("tmode","tmv", trackUi); trackUi();
+segment("smode","smv", reframeUi);
 segment("rmode","rmv", reframeUi);
 segment("fmt","fmv", reframeUi); reframeUi();
 
@@ -385,11 +387,13 @@ function splitKeys(r, slot, yFixed, g, seqW){
 }
 
 /* Reframe dinámico: pantalla dividida solo mientras hablan 2+ personas, seguimiento cuando habla 1 */
-function dynRuns(r, minLen){
-  var n = r.t.length, st = [], i, k, prev = null, step = 0.2;
+function dynRuns(r, minLen, win){
+  var n = r.t.length, st = [], i, k, prev = null, step = 0.2, w = Math.round((win || 0) / step), j;
   for(i=0;i<n;i++){
     var on = [], key;
-    for(k=0;k<r.K;k++) if(r.spk && r.spk[k] && r.spk[k][i]) on.push(k);
+    for(k=0;k<r.K;k++){
+      for(j=Math.max(0, i - w);j<=Math.min(n - 1, i + w);j++) if(r.spk && r.spk[k] && r.spk[k][j]){ on.push(k); break; }
+    }
     if(on.length >= 2) key = "S" + on[0] + "," + on[1];
     else if(on.length === 1) key = "P" + on[0];
     else key = prev;
@@ -408,8 +412,10 @@ function dynRuns(r, minLen){
   while(changed && runs.length > 1){
     changed = false;
     for(q=0;q<runs.length;q++){
-      if((runs[q].e - runs[q].s + 1) * step < minLen){
-        if(q > 0) runs[q-1].e = runs[q].e; else runs[q+1].s = runs[q].s;
+      var lim = runs[q].key.charAt(0) === "P" && w > 0 ? 3.0 : minLen;
+      if((runs[q].e - runs[q].s + 1) * step < lim){
+        var toPrev = q > 0 && (q === runs.length - 1 || runs[q-1].key.charAt(0) === "S" || runs[q+1].key.charAt(0) !== "S");
+        if(toPrev) runs[q-1].e = runs[q].e; else runs[q+1].s = runs[q].s;
         runs.splice(q, 1); changed = true; break;
       }
     }
@@ -420,7 +426,7 @@ function dynRuns(r, minLen){
   return runs;
 }
 function dynPlan(r, c, o){
-  var runs = dynRuns(r, 1.2), gs = geom(r.W, r.H, o.seqW, o.seqH, o.seqH/2, o.basis), len = c.outP - c.inP;
+  var runs = dynRuns(r, 1.2, o.win), gs = geom(r.W, r.H, o.seqW, o.seqH, o.seqH/2, o.basis), len = c.outP - c.inP;
   var B = {k: [], last: null}, T = {k: [], last: null}, OP = [], opLast = null, nSplit = 0, secSplit = 0, med = [], k;
   for(k=0;k<r.K;k++) med.push(median(r.cy[k]));
   function put(L, t, x, y, S, cut){
@@ -484,13 +490,17 @@ async function runReframe(){
     }
     if(!people) log(c.name + ": no encontré caras, centro el encuadre.");
     else if(mode === "auto") log(c.name + ": " + (people >= 2 ? people + " personas → pantalla dividida" : "1 persona → encuadre único"));
+    if(people && r.spk){
+      var tot = r.t.length || 1, sp = r.spk.map(function(a){ return Math.round(100 * a.reduce(function(x, y){ return x + y; }, 0) / tot); });
+      log(c.name + ": " + people + " cara(s) detectada(s) · hablando: " + sp.map(function(p, i){ return "persona " + (i+1) + " " + p + "%"; }).join(", "));
+    }
     var wantSplit = mode !== "single" && people >= 2;
     if(mode === "split" && people < 2) log(c.name + ": no encontré dos personas, uso un hablante.");
     if(wantSplit && !canSplit){ log(c.name + ": este formato es muy ancho para dividir, uso un hablante."); wantSplit = false; }
     var dyn = null;
     if(wantSplit && mode === "auto"){
-      dyn = dynPlan(r, c, {zmode: $("zmv").value, zmax: $("zmax").value/100, seqW: seqW, seqH: seqH, basis: basis, swap: $("swap").checked});
-      if(!dyn.nSplit){ log(c.name + ": nadie habla a la vez, solo sigo al que habla."); wantSplit = false; dyn = null; }
+      dyn = dynPlan(r, c, {win: $("smv").value === "talk" ? 3 : 0, zmode: $("zmv").value, zmax: $("zmax").value/100, seqW: seqW, seqH: seqH, basis: basis, swap: $("swap").checked});
+      if(!dyn.nSplit){ log(c.name + ": no encontré momentos de diálogo, solo sigo al que habla. Prueba 'Dividida' en modo Dividida para forzarla."); wantSplit = false; dyn = null; }
     }
     if(dyn){
       log(c.name + ": " + dyn.nSplit + " tramo(s) con pantalla dividida (" + dyn.secSplit.toFixed(0) + " s), el resto sigue al que habla.");

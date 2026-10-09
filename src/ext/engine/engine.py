@@ -186,10 +186,17 @@ def do_reframe(params, jobs):
             start, end = j["start"], j["end"]
             if start > 1.0:
                 c.seek(int((start - 1.0) * 1000000), stream=v)
-            fm = mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=4,
-                                                 refine_landmarks=False, min_detection_confidence=0.5,
-                                                 min_tracking_confidence=0.5)
-            h2 = max(int(480 * H / float(W)) // 2 * 2, 2)
+            tile = (W / float(H)) >= 1.5
+            if tile:
+                fm = mp.solutions.face_mesh.FaceMesh(static_image_mode=True, max_num_faces=2,
+                                                     refine_landmarks=False, min_detection_confidence=0.5)
+                BW = 1280
+                BH = max(int(BW * H / float(W)) // 2 * 2, 2)
+            else:
+                fm = mp.solutions.face_mesh.FaceMesh(static_image_mode=False, max_num_faces=4,
+                                                     refine_landmarks=False, min_detection_confidence=0.5,
+                                                     min_tracking_confidence=0.5)
+                h2 = max(int(480 * H / float(W)) // 2 * 2, 2)
             samples, nxt = [], start
             dur = max(end - start, 0.1)
             for frame in c.decode(v):
@@ -201,14 +208,32 @@ def do_reframe(params, jobs):
                 if t > end:
                     break
                 nxt = t + step
-                img = frame.reformat(width=480, height=h2, format="rgb24").to_ndarray()
-                res = fm.process(np.ascontiguousarray(img))
                 faces = []
-                for fl in (res.multi_face_landmarks or []):
-                    lm = fl.landmark
-                    fh = max(abs(lm[152].y - lm[10].y), 1e-4)
-                    faces.append((float(np.mean([p.x for p in lm])), float(np.mean([p.y for p in lm])),
-                                  abs(lm[14].y - lm[13].y) / fh))
+                if tile:
+                    big = frame.reformat(width=BW, height=BH, format="rgb24").to_ndarray()
+                    for x0, x1 in ((0.0, 0.56), (0.44, 1.0)):
+                        crop = np.ascontiguousarray(big[:, int(x0 * BW):int(x1 * BW)])
+                        res = fm.process(crop)
+                        for fl in (res.multi_face_landmarks or []):
+                            lm = fl.landmark
+                            fh = max(abs(lm[152].y - lm[10].y), 1e-4)
+                            cxl = float(np.mean([p.x for p in lm]))
+                            faces.append((x0 + cxl * (x1 - x0), float(np.mean([p.y for p in lm])),
+                                          abs(lm[14].y - lm[13].y) / fh))
+                    faces.sort(key=lambda a: a[0])
+                    ded = []
+                    for f in faces:
+                        if not ded or abs(f[0] - ded[-1][0]) > 0.06:
+                            ded.append(f)
+                    faces = ded
+                else:
+                    img = frame.reformat(width=480, height=h2, format="rgb24").to_ndarray()
+                    res = fm.process(np.ascontiguousarray(img))
+                    for fl in (res.multi_face_landmarks or []):
+                        lm = fl.landmark
+                        fh = max(abs(lm[152].y - lm[10].y), 1e-4)
+                        faces.append((float(np.mean([p.x for p in lm])), float(np.mean([p.y for p in lm])),
+                                      abs(lm[14].y - lm[13].y) / fh))
                 samples.append((t, faces))
                 progress((ji + min((t - start) / dur, 1.0)) / len(jobs))
             c.close()
@@ -228,7 +253,7 @@ def analyse_faces(samples, W, H, step):
         return {"W": W, "H": H, "K": 0, "t": [s[0] for s in samples], "cx": [], "cy": [], "act": []}
     multi = [c for c in counts if c >= 2]
     p2 = len(multi) / float(len(counts))
-    if p2 >= 0.4:
+    if p2 >= 0.25:
         K = min(max(int(np.bincount(multi).argmax()), 2), 3)
     else:
         K = 1
