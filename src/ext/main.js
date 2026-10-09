@@ -1026,6 +1026,69 @@ $("fadd").onclick = addFiller; $("fnew").onkeydown = function(e){ if(e.keyCode =
 $("freset").onclick = function(){ FL.items = SP_FILLERS.map(function(w){ return {w: w, on: true}; }); saveFL(); renderFL(); };
 FL.items = loadFL(); renderFL();
 
+
+/* ---------- Actualizaciones automáticas ---------- */
+var UPD = {url: "https://raw.githubusercontent.com/SoyYeral/zapcut/main/dist/version.json", host: "raw.githubusercontent.com", prefix: "/SoyYeral/zapcut/", info: null,
+  cert: "-----BEGIN CERTIFICATE-----\nMIIEEzCCAnugAwIBAgIUD0g96S5GAlWaG2cx9TgNNRgYLwUwDQYJKoZIhvcNAQEL\nBQAwGTEXMBUGA1UEAwwOWmFwQ3V0IFVwZGF0ZXMwHhcNMjYxMDA5MDQyNzA2WhcN\nNDYxMDA0MDQyNzA2WjAZMRcwFQYDVQQDDA5aYXBDdXQgVXBkYXRlczCCAaIwDQYJ\nKoZIhvcNAQEBBQADggGPADCCAYoCggGBAMSUsqncHT4pevO3xLiONF6ZqvORbAai\niP/3fxRoH0gJ5DC1B/Lcs4BrvJMcxDWCf8RlwQ1UuGCl4frDQdH5c12fjQfoZdqx\n0iQfUUWs68DaloXSwYtFf6i4QET0nU5smn6BLfwuLp/qAXMSlsPW2gzRAetQoUI7\n2FangkGm29gfH0sIcC0gw+hEzplEUfJGb3lWSyAehkYJABY6EMP/WsfnNPy1Zeq+\nCAKk3UeBjGc8v+Y7C1Zlm2G4jMycv867MScMdC9fcZ/G9tYqrZLIJfvDB+587B28\nVS3KnuCjYhU5iTaU63Cdc/RjnugUwavySVtVc5ON8InZVTQP0oFOZHrdESrjlLfW\n7weE/HmsV/gfdOR+l2c8yWtXZ7BBzq3r7nMWt7iwjuPmodK0r78TgGp946psoNdL\nv9MnYS7KBPv2ISRdx2a4KKwcVK6mRiijhEc1DxQegzl6xVoul89+9QZc77IRO+AH\nCBMrpu9Dgugr7n2JGW+LGzrN8HL0Act2aQIDAQABo1MwUTAdBgNVHQ4EFgQUTs3s\nckSn3/TX5QMMj/ySlSaxC0AwHwYDVR0jBBgwFoAUTs3sckSn3/TX5QMMj/ySlSax\nC0AwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAYEAZ00ZxoOYkldQ\nfRwL5ND6pcfMrM0Hk2mPptEEfU494/nOmi9EUQ1BvlqYwsu0mbcC1+y9aAPzLbuk\ns5BXznX8W/BJTMSt1C9l/l0OJTWG86gezwcEHsBZh9cAacyA+lQWkOSSpKZYYg6e\ntKrEpT3pdypRXiSCj2icf0kiz9Xs/yCqziZn7FTVuAfKyZRGVN4nH8BxFBNalK/v\nmlnhPDsPBDE5lSI+jpRwnlrrgKefJK2+V4ZLUJ7Gzi1aXsvMyrUvXzEaXl+CY7si\nEUu3EieASz91i8A7eWqZNZ29P+R5UoqhD9VIXaX23iTJYwyNKovYpho/J0kcZdJu\nYUoGfKgOYBTsiJ7LPPy1Y8Hq6cQBHcYF/GEhN58UVzy2ODEAodCyif9K8iTLuI5s\nU0gdWNPvRmNV/7WbWtNvwUHqGDkVK4ivD1wfr6cKY9S0S5WOMgItOyslWN5O7ci5\nZ/3XbACJc7fPUk4J839nWjIAeykKkmwry9FDvlbzbZZ/J09H0v7c\n-----END CERTIFICATE-----"};
+function curVer(){ try{ return /ExtensionBundleVersion="([\d.]+)"/.exec(fs.readFileSync(path.join(extDir, "CSXS", "manifest.xml"), "utf8"))[1]; }catch(e){ return "0"; } }
+function vNum(v){ var p = String(v).split(".").map(Number); return (p[0]||0) * 1e6 + (p[1]||0) * 1e3 + (p[2]||0); }
+function httpsGet(u){
+  return new Promise(function(res, rej){
+    var https = require("https"), url = require("url"), o = url.parse(u);
+    if(o.protocol !== "https:" || o.hostname !== UPD.host || o.pathname.indexOf(UPD.prefix) !== 0) return rej(new Error("Dirección de actualización no permitida"));
+    var rq = https.get({hostname: o.hostname, path: o.path, headers: {"User-Agent": "ZapCut", "Cache-Control": "no-cache"}}, function(r){
+      if(r.statusCode !== 200){ r.resume(); return rej(new Error("HTTP " + r.statusCode)); }
+      var ch = []; r.on("data", function(d){ ch.push(d); }); r.on("end", function(){ res(Buffer.concat(ch)); });
+    });
+    rq.on("error", rej); rq.setTimeout(30000, function(){ rq.abort(); rej(new Error("Sin respuesta")); });
+  });
+}
+function verifyInfo(j){
+  var c = require("crypto");
+  return !!(j && j.version && j.sha256 && j.sig && c.createVerify("RSA-SHA256").update(j.version + "|" + j.sha256).verify(UPD.cert, j.sig, "base64"));
+}
+async function checkUpdate(){
+  try{
+    var j = JSON.parse((await httpsGet(UPD.url)).toString("utf8"));
+    if(!verifyInfo(j) || vNum(j.version) <= vNum(curVer())) return;
+    UPD.info = j;
+    $("updt").textContent = "Hay una versión nueva: " + j.version + (j.notes ? " · " + j.notes : "");
+    $("upd").hidden = false;
+  }catch(e){}
+}
+function psRun(cmd){
+  return new Promise(function(res, rej){
+    cp.execFile("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", cmd], {windowsHide: true}, function(err, so, se){ if(err) rej(new Error(String(se || err.message).slice(0, 300))); else res(so); });
+  });
+}
+async function applyUpdate(){
+  var j = UPD.info, b = $("updb");
+  if(!j || busy) return;
+  busy = true; b.disabled = true; b.textContent = "Descargando…";
+  var tmp = path.join(os.tmpdir(), "zapcut_upd_" + Date.now()), zf = tmp + ".zip";
+  try{
+    if(!verifyInfo(j)) throw new Error("La firma de la actualización no es válida.");
+    var buf = await httpsGet(j.zip);
+    if(require("crypto").createHash("sha256").update(buf).digest("hex") !== String(j.sha256).toLowerCase()) throw new Error("El archivo descargado no coincide con su huella.");
+    fs.writeFileSync(zf, buf);
+    b.textContent = "Instalando…";
+    await psRun("Expand-Archive -LiteralPath '" + zf + "' -DestinationPath '" + tmp + "' -Force");
+    var nv = /ExtensionBundleVersion="([\d.]+)"/.exec(fs.readFileSync(path.join(tmp, "CSXS", "manifest.xml"), "utf8"));
+    if(!nv || nv[1] !== j.version) throw new Error("La versión descargada no es la esperada.");
+    await psRun("Copy-Item -Path '" + tmp + "\\*' -Destination '" + extDir + "' -Recurse -Force");
+    try{ fs.unlinkSync(zf); }catch(e){}
+    $("updt").textContent = "Listo: versión " + j.version + " instalada. Cierra y vuelve a abrir Premiere Pro para usarla.";
+    b.hidden = true; $("upd").className = "upd ok";
+  }catch(e){
+    $("updt").textContent = "No se pudo actualizar: " + e.message + " Descarga el instalador desde github.com/SoyYeral/zapcut.";
+    b.disabled = false; b.textContent = "Reintentar";
+  }
+  busy = false;
+}
+$("updb").onclick = applyUpdate;
+$("ver").textContent = "v" + curVer().replace(/\.0$/, "");
+setTimeout(checkUpdate, 1500);
+
 async function go(fn, btn, label){
   if(busy) return; busy = true; btn.disabled = true; btn.textContent = "Trabajando…";
   $("log").textContent = ""; $("n1").textContent = "0"; PR.a = 0; PR.b = 1; prog(0); startTimer();
