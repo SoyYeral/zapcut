@@ -1,7 +1,7 @@
 Unicode true
 !include "MUI2.nsh"
 Name "ZapCut v1.7.1 for Premiere Pro"
-OutFile "Install_ZapCut_v1.7.1.1.exe"
+OutFile "Install_ZapCut_v1.7.1.exe"
 RequestExecutionLevel user
 InstallDir "$APPDATA\Adobe\CEP\extensions\ZapCut"
 !insertmacro MUI_PAGE_INSTFILES

@@ -1,7 +1,7 @@
 {
-  "version": "1.7.0",
-  "zip": "https://raw.githubusercontent.com/SoyYeral/zapcut/main/dist/ZapCut_v1.7_extension.zip",
-  "sha256": "14c891b58953aefa6eea9a587d1b602db7845eed001ea4e7b440e88160844c53",
-  "sig": "bADKgaNq0fqpVnChZ655pKpolLJPBBePjekC7DrAVbYiqGbnnUSX/rxgEb2LMHuhoFYvDIH11BdxMLI5d+R+NVqIRmmh+vOVQEHBI5ChG8TYVFu39AJY8bDtZRqVwd9hdaw+me4QT25ASv1L4GX3Ffo0KmTJJETP0+BO1Z8+JfKrkqym9A+ZzqLGhngAmqQD9U4PHJUEyMriVpd3sDOQJETKryH5yY1of6QzWb8jQW1Ez/OkzSC0o1D37XiRlO4HRD3ppRZC3ufbKHDDdC7KGBcq+gsMomJ6lBRQt9VaBmf/wWw0VdLcNR1eHpE0TOtFT+EzrtC57/ZzH6EkevB6UV65yZK2pD0RsZR1rnzZJmsjGZW3YVTn3FBQfIHYGEDhnsFdHSOk6M37PytamHGe7KdoJX74iFMsQmxsE7zYgARXSNZm4MXl6Eiv7bjcY34vchB01/9JBLaeDl21EO8LHh1N3BCGqf8nmZm81LaOGX0ZoywzcGZuoWZyG9GKJEXJ",
-  "notes": "Actualizaciones automáticas dentro del panel."
+  "version": "1.7.1",
+  "zip": "https://raw.githubusercontent.com/SoyYeral/zapcut/main/dist/ZapCut_v1.7.1_extension.zip",
+  "sha256": "6036a6344a2abee48e65829f91282c5296f7ffeabb9015fc2959fe22d58b83d0",
+  "sig": "sV2UVSUeskvXTTkE+NRbgNblfbTu0x0nSuexNXBaYIRIr7AJG2Ga6jQlWT8+s1I+wlPJhhhIsMYEWUyexcUCCjRJlJLnyKkTcxaQ74zZt4Q5yArtnORNhgKSrzchh5UY0FPv3EKzYKEz2xhACJBM4HHuzrYJs+zUPosznBOuMr98T8Ta06u9NP0TCNEAcgkaliW3R5lmBtRYjSoiek+6QJ/uapd0XIszW60ZheliNImD0cz9FghF6r93Og79u8J0Aw/SpabsHMKtDfxF0X2bhemoI0IiY4oDjRLvvWCPyGeugeSjeECG/jBKs1dqmYHpQ8IE7/0/Isk28mapkW0kf50Xt1QFNXdVwTVu3FtqWEYRzGjR9zmaOjiKjIeMxTTEKadl7w9AkvTjurB+DrAsRuygibn8FIl5+o1jGAyKMgKeexQaqGWlwrLjk6Kj4FelU1IA71gkoPdn9BBKd1pg2sh0UScqCVsS948IPpKBcDFVCDbaKELNCIvgmj62j4Qz",
+  "notes": "Pantalla dividida en conversaciones y mejor detección de caras en planos anchos."
 }
