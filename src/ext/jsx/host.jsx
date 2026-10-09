@@ -251,6 +251,42 @@ function applyOpacity(t, c, spec){
   }catch(err){ return "error:" + err; }
 }
 
+// spec "tiempo,recorteSuperior%;..."  (agrega el efecto Crop si no existe)
+function applyCrop(t, c, spec){
+  try{
+    app.enableQE();
+    var seq = app.project.activeSequence, cl = seq.videoTracks[t].clips[c];
+    var comp = findComp(cl, ["Crop","Recortar"], ["Crop"]);
+    if(!comp){
+      var q = qe.project.getActiveSequence(), tr = q.getVideoTrackAt(t), k, it = null, cs = cl.start.seconds;
+      for(k=0;k<tr.numItems;k++){
+        var x = tr.getItemAt(k), xs = null;
+        try{ xs = parseFloat(x.start.secs); }catch(e1){}
+        if(xs === null || isNaN(xs)){ try{ xs = x.start.seconds; }catch(e2){ xs = null; } }
+        if(xs !== null && !isNaN(xs) && Math.abs(xs - cs) < 0.05){ it = x; break; }
+      }
+      if(!it) return "error:crop-sin-item";
+      var fx = qe.project.getVideoEffectByName("Crop");
+      if(!fx) fx = qe.project.getVideoEffectByName("Recortar");
+      if(!fx) return "error:crop-sin-efecto";
+      it.addVideoEffect(fx);
+      cl = seq.videoTracks[t].clips[c];
+      comp = findComp(cl, ["Crop","Recortar"], ["Crop"]);
+    }
+    if(!comp) return "error:crop-no-aplicado";
+    var top = findProp(comp, ["Top","Superior","Arriba"], [], 1);
+    var parts = spec.split(";"), off = KEY_TIME_IS_MEDIA ? 0 : cl.inPoint.seconds, i;
+    if(parts.length < 2){ top.setValue(parseFloat(parts[0].split(",")[1]), true); return "ok"; }
+    top.setTimeVarying(true);
+    for(i=0;i<parts.length;i++){
+      var kv = parts[i].split(","), tm = Math.max(0, parseFloat(kv[0]) - off);
+      top.addKey(tm);
+      top.setValueAtKey(tm, parseFloat(kv[1]), true);
+    }
+    return "ok";
+  }catch(err){ return "error:" + err; }
+}
+
 function dupToTrack(t, c, nt){
   try{
     var seq = app.project.activeSequence, cl = seq.videoTracks[t].clips[c], pi = cl.projectItem;

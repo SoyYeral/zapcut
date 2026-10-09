@@ -1,7 +1,7 @@
 {
-  "version": "1.7.1",
-  "zip": "https://raw.githubusercontent.com/SoyYeral/zapcut/main/dist/ZapCut_v1.7.1_extension.zip",
-  "sha256": "6036a6344a2abee48e65829f91282c5296f7ffeabb9015fc2959fe22d58b83d0",
-  "sig": "sV2UVSUeskvXTTkE+NRbgNblfbTu0x0nSuexNXBaYIRIr7AJG2Ga6jQlWT8+s1I+wlPJhhhIsMYEWUyexcUCCjRJlJLnyKkTcxaQ74zZt4Q5yArtnORNhgKSrzchh5UY0FPv3EKzYKEz2xhACJBM4HHuzrYJs+zUPosznBOuMr98T8Ta06u9NP0TCNEAcgkaliW3R5lmBtRYjSoiek+6QJ/uapd0XIszW60ZheliNImD0cz9FghF6r93Og79u8J0Aw/SpabsHMKtDfxF0X2bhemoI0IiY4oDjRLvvWCPyGeugeSjeECG/jBKs1dqmYHpQ8IE7/0/Isk28mapkW0kf50Xt1QFNXdVwTVu3FtqWEYRzGjR9zmaOjiKjIeMxTTEKadl7w9AkvTjurB+DrAsRuygibn8FIl5+o1jGAyKMgKeexQaqGWlwrLjk6Kj4FelU1IA71gkoPdn9BBKd1pg2sh0UScqCVsS948IPpKBcDFVCDbaKELNCIvgmj62j4Qz",
-  "notes": "Pantalla dividida en conversaciones y mejor detección de caras en planos anchos."
+  "version": "1.7.2",
+  "zip": "https://raw.githubusercontent.com/SoyYeral/zapcut/main/dist/ZapCut_v1.7.2_extension.zip",
+  "sha256": "529bc487bbde9c797bd3c6d558ae06cf5427a386b910d474a9026ecd04a55aec",
+  "sig": "C3g5Kj1q2X800SH3r3I+yaK0TdW3fao0AfyXpyjqz44AP/gy7lwjTK+1YgvAl5IBBmSkNxYIgnwDn68UNftgWEe6tHcQS5Y9yYwp3Qe30Sb5B5IVkaall60LcWtZuJMad8KE4DrHIsvgwVgD7awZwQUN2onCiVGOxWA1FUqOPIEXie6LYJHctIxifk3ruW77Y1/3FgreHu5tF5T/Ms2zFd0LBJNJql1vMI9/Km1Iqe24gEZp5EQ93mDTzLgbmiFLaKTKSDaGGbC0FlwUcQSJ1Jkg791fAIcNw2B1JYsvDNS7rvQeKjZspkyvyXEKkVx3+k0yfH3idM7bJ7znjkuxZQiXZlEmKoF5fzhukO90AF4h39g++Y3zANV1bA1R/qcml6AaCj2dAg+YdzHgrtFiQXYUYVdH/0nNWmLpvwxusp+RykMJmjMjJZM6QsUx+Cfd1s1HS+/lX757K0IMQMHWHdOnGjPMkyr/5KfK42PrMob581yK5avUTQ92v4IHbhNq",
+  "notes": "Pantalla dividida cuando salen las dos personas en cámara, con acercamiento a cada una."
 }

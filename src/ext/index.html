@@ -6,7 +6,7 @@
 <header>
   <svg class="logo" viewBox="0 0 48 48"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#22d3ee"/><stop offset="1" stop-color="#8b5cf6"/></linearGradient></defs>
     <rect width="48" height="48" rx="12" fill="url(#g)"/><path d="M27 6L12 27h9l-3 15 18-22H26z" fill="#fff"/></svg>
-  <div><h1>ZapCut <span class="ver" id="ver">v1.7.1</span></h1><p class="tag">Edita tu podcast y tus shorts en minutos</p></div>
+  <div><h1>ZapCut <span class="ver" id="ver">v1.7.2</span></h1><p class="tag">Edita tu podcast y tus shorts en minutos</p></div>
 </header>
 <div id="selchip" class="chip">Selecciona clips en la secuencia</div>
 
@@ -66,9 +66,9 @@
   <input type="hidden" id="rmv" value="auto">
   <p class="hint" id="rhint"></p>
   <div id="smodeRow">
-    <div class="seg-label">Dividir pantalla cuando</div>
-    <div class="seg" id="smode"><button data-v="talk" class="on">Hay conversación</button><button data-v="both">Hablan a la vez</button></div>
-    <input type="hidden" id="smv" value="talk">
+    <div class="seg-label">Acercamiento en pantalla dividida</div>
+    <div class="seg" id="smode"><button data-v="soft">Suave</button><button data-v="mid" class="on">Medio</button><button data-v="close">Cerca</button></div>
+    <input type="hidden" id="smv" value="mid">
   </div>
   <div class="seg-label">Cámara</div>
   <div class="seg" id="tmode"><button data-v="follow" class="on">Seguir a la persona</button><button data-v="fixed">Cámara fija</button></div>

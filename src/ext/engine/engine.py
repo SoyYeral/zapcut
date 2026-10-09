@@ -219,7 +219,7 @@ def do_reframe(params, jobs):
                             fh = max(abs(lm[152].y - lm[10].y), 1e-4)
                             cxl = float(np.mean([p.x for p in lm]))
                             faces.append((x0 + cxl * (x1 - x0), float(np.mean([p.y for p in lm])),
-                                          abs(lm[14].y - lm[13].y) / fh))
+                                          abs(lm[14].y - lm[13].y) / fh, fh))
                     faces.sort(key=lambda a: a[0])
                     ded = []
                     for f in faces:
@@ -233,7 +233,7 @@ def do_reframe(params, jobs):
                         lm = fl.landmark
                         fh = max(abs(lm[152].y - lm[10].y), 1e-4)
                         faces.append((float(np.mean([p.x for p in lm])), float(np.mean([p.y for p in lm])),
-                                      abs(lm[14].y - lm[13].y) / fh))
+                                      abs(lm[14].y - lm[13].y) / fh, fh))
                 samples.append((t, faces))
                 progress((ji + min((t - start) / dur, 1.0)) / len(jobs))
             c.close()
@@ -244,13 +244,16 @@ def do_reframe(params, jobs):
         progress((ji + 1) / len(jobs))
     return out
 
+def face_table(samples):
+    return [[[round(float(f[0]), 4), round(float(f[1]), 4), round(float(f[3]) if len(f) > 3 else 0.12, 4)] for f in faces] for _, faces in samples]
+
 def analyse_faces(samples, W, H, step):
     n = len(samples)
     if n == 0:
-        return {"W": W, "H": H, "K": 0, "t": [], "cx": [], "cy": [], "act": []}
+        return {"W": W, "H": H, "K": 0, "t": [], "cx": [], "cy": [], "act": [], "faces": []}
     counts = [len(f) for _, f in samples if len(f) > 0]
     if not counts:
-        return {"W": W, "H": H, "K": 0, "t": [s[0] for s in samples], "cx": [], "cy": [], "act": []}
+        return {"W": W, "H": H, "K": 0, "t": [s[0] for s in samples], "cx": [], "cy": [], "act": [], "faces": face_table(samples)}
     multi = [c for c in counts if c >= 2]
     p2 = len(multi) / float(len(counts))
     if p2 >= 0.25:
@@ -315,7 +318,7 @@ def analyse_faces(samples, W, H, step):
         for i in range(1, n):
             cx[k, i] = cx[k, i - 1] + a * (cx[k, i] - cx[k, i - 1])
             cy[k, i] = cy[k, i - 1] + a * (cy[k, i] - cy[k, i - 1])
-    return {"W": W, "H": H, "K": K, "p2": round(p2, 2), "t": [round(s[0], 3) for s in samples], "spk": spk,
+    return {"W": W, "H": H, "K": K, "p2": round(p2, 2), "t": [round(s[0], 3) for s in samples], "spk": spk, "faces": face_table(samples),
             "cx": [[round(float(x), 4) for x in cx[k]] for k in range(K)],
             "cy": [[round(float(x), 4) for x in cy[k]] for k in range(K)], "act": act}
 

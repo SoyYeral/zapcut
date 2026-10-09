@@ -10,7 +10,10 @@ var pyExe = path.join(dataDir, "venv", "Scripts", "python.exe");
 var engine = path.join(extDir, "engine", "engine.py");
 var info = null, busy = false, timer = null, t0 = 0;
 
-function log(m){ $("log").textContent += m + "\n"; $("log").scrollTop = 1e9; }
+function log(m){
+  $("log").textContent += m + "\n"; $("log").scrollTop = 1e9;
+  try{ var d = path.join(os.homedir(), "Documents", "ZapCut"); try{ fs.mkdirSync(d); }catch(e0){} fs.appendFileSync(path.join(d, "ZapCut_log.txt"), new Date().toISOString().slice(11, 19) + " " + m + "\n"); }catch(e){}
+}
 function status(m){ $("status").textContent = m; }
 var PR = {a: 0, b: 1};
 function prog(p){ p = PR.a + Math.min(Math.max(p,0),1) * (PR.b - PR.a); var v = Math.round(p*100) + "%"; $("fill").style.width = v; $("pct").textContent = v; }
@@ -46,7 +49,7 @@ var ZHINT = {off:"El encuadre queda fijo, sin acercamientos.", fixed:"Acercamien
 function zoomUi(){ var m = $("zmv").value; $("zrow").hidden = m === "off"; $("zhint").textContent = ZHINT[m]; }
 segment("zmode","zmv", zoomUi); zoomUi();
 var FORMATS = {"9x16":[1080,1920], "4x5":[1080,1350], "3x4":[1080,1440], "1x1":[1080,1080], "16x9":[1920,1080]};
-var RHINT = {auto:"Habla una persona: el encuadre la sigue. Hablan dos o más a la vez: pantalla dividida, una arriba y otra abajo.", single:"Sigue siempre a la persona que está hablando.", split:"Pantalla dividida fija durante todo el clip cuando hay dos personas."};
+var RHINT = {auto:"Plano con las dos personas en cámara: pantalla dividida, una arriba y otra abajo. Plano con una persona: el encuadre la sigue.", single:"Sigue siempre a la persona que está hablando.", split:"Pantalla dividida fija durante todo el clip cuando hay dos personas."};
 function canSplitFmt(){ var f = FORMATS[$("fmv").value]; return f[1] >= f[0] * 1.24; }
 function reframeUi(){
   var m = $("rmv").value, split = m === "split";
@@ -386,77 +389,113 @@ function splitKeys(r, slot, yFixed, g, seqW){
   return keys.join(";");
 }
 
-/* Reframe dinámico: pantalla dividida solo mientras hablan 2+ personas, seguimiento cuando habla 1 */
-function dynRuns(r, minLen, win){
-  var n = r.t.length, st = [], i, k, prev = null, step = 0.2, w = Math.round((win || 0) / step), j;
+/* Reframe por planos: 2 caras en cámara = pantalla dividida; 1 cara = seguimiento */
+function faceList(r, i){
+  var f = (r.faces && r.faces[i]) || [], mx = 0;
+  f.forEach(function(a){ if(a[2] > mx) mx = a[2]; });
+  return f.filter(function(a){ return a[2] >= Math.max(0.03, 0.5 * mx); });
+}
+function viewRuns(r, minLen, allowSplit){
+  var n = r.t.length, st = [], i, prev = null, step = 0.2, q;
   for(i=0;i<n;i++){
-    var on = [], key;
-    for(k=0;k<r.K;k++){
-      for(j=Math.max(0, i - w);j<=Math.min(n - 1, i + w);j++) if(r.spk && r.spk[k] && r.spk[k][j]){ on.push(k); break; }
-    }
-    if(on.length >= 2) key = "S" + on[0] + "," + on[1];
-    else if(on.length === 1) key = "P" + on[0];
-    else key = prev;
+    var c = faceList(r, i).length, key = c >= 2 && allowSplit ? "S" : (c >= 1 ? "P" : prev);
     st.push(key); if(key) prev = key;
   }
-  var first = null;
+  var first = "P";
   for(i=0;i<n;i++) if(st[i]){ first = st[i]; break; }
-  if(!first) first = "P" + (r.act && r.act.length ? r.act[0] : 0);
-  for(i=0;i<n && !st[i];i++) st[i] = first;
+  for(i=0;i<n;i++) if(!st[i]) st[i] = first; else break;
   var runs = [];
   for(i=0;i<n;i++){
     if(runs.length && runs[runs.length-1].key === st[i]) runs[runs.length-1].e = i;
     else runs.push({key: st[i], s: i, e: i});
   }
-  var changed = true, q;
+  var changed = true;
   while(changed && runs.length > 1){
     changed = false;
     for(q=0;q<runs.length;q++){
-      var lim = runs[q].key.charAt(0) === "P" && w > 0 ? 3.0 : minLen;
-      if((runs[q].e - runs[q].s + 1) * step < lim){
-        var toPrev = q > 0 && (q === runs.length - 1 || runs[q-1].key.charAt(0) === "S" || runs[q+1].key.charAt(0) !== "S");
-        if(toPrev) runs[q-1].e = runs[q].e; else runs[q+1].s = runs[q].s;
+      if((runs[q].e - runs[q].s + 1) * step < minLen){
+        if(q > 0) runs[q-1].e = runs[q].e; else runs[q+1].s = runs[q].s;
         runs.splice(q, 1); changed = true; break;
       }
     }
-    for(q=runs.length-1;q>0;q--){
-      if(runs[q].key === runs[q-1].key){ runs[q-1].e = runs[q].e; runs.splice(q, 1); }
-    }
+    for(q=runs.length-1;q>0;q--) if(runs[q].key === runs[q-1].key){ runs[q-1].e = runs[q].e; runs.splice(q, 1); }
   }
   return runs;
 }
-function dynPlan(r, c, o){
-  var runs = dynRuns(r, 1.2, o.win), gs = geom(r.W, r.H, o.seqW, o.seqH, o.seqH/2, o.basis), len = c.outP - c.inP;
-  var B = {k: [], last: null}, T = {k: [], last: null}, OP = [], opLast = null, nSplit = 0, secSplit = 0, med = [], k;
-  for(k=0;k<r.K;k++) med.push(median(r.cy[k]));
+function fillNull(arr, def){
+  var last = null, i;
+  for(i=0;i<arr.length;i++){ if(arr[i]) last = arr[i]; else if(last) arr[i] = last; }
+  var nxt = null;
+  for(i=arr.length-1;i>=0;i--){ if(arr[i]) nxt = arr[i]; else if(nxt) arr[i] = nxt; }
+  for(i=0;i<arr.length;i++) if(!arr[i]) arr[i] = def;
+  return arr;
+}
+function smoothSeries(v, fixed){
+  if(fixed){ var md = median(v); return v.map(function(){ return md; }); }
+  var o = [], i, cur = v[0];
+  for(i=0;i<v.length;i++){ cur = cur + 0.4 * (v[i] - cur); o.push(cur); }
+  return o;
+}
+var ZF = {soft: 0.11, mid: 0.16, close: 0.22};
+function viewPlan(r, c, o){
+  var runs = viewRuns(r, 1.0, o.allowSplit), halfH = o.seqH / 2, len = c.outP - c.inP, fixed = o.track === "fixed";
+  var B = {k: [], last: null}, T = {k: [], last: null}, CR = [], crLast = null, OP = [], opLast = null, nSplit = 0, secSplit = 0, nSolo = 0, secSolo = 0;
+  var fillS = Math.max(halfH / r.H, o.seqW / r.W);
   function put(L, t, x, y, S, cut){
     if(cut && L.last) L.k.push(keyStr(t - 0.001, L.last.x, L.last.y, L.last.S));
     if(cut || !L.last || Math.abs(x - L.last.x) > 0.004 || Math.abs(y - L.last.y) > 0.004 || Math.abs(S - L.last.S) > 0.6){
       L.k.push(keyStr(t, x, y, S)); L.last = {x: x, y: y, S: S};
     }
   }
+  function putStep(list, last, t, val){
+    if(last === null) list.push(t.toFixed(3) + "," + val);
+    else if(last !== val){ list.push((t - 0.001).toFixed(3) + "," + last); list.push(t.toFixed(3) + "," + val); }
+    return val;
+  }
   runs.forEach(function(run){
-    var isSplit = run.key.charAt(0) === "S", ids = run.key.slice(1).split(",").map(Number), i, t;
-    var val = isSplit ? 100 : 0, ts = r.t[run.s];
-    if(opLast === null) OP.push(ts.toFixed(3) + "," + val);
-    else if(opLast !== val){ OP.push((ts - 0.001).toFixed(3) + "," + opLast); OP.push(ts.toFixed(3) + "," + val); }
-    opLast = val;
-    if(isSplit){ nSplit++; secSplit += (run.e - run.s + 1) * 0.2; }
+    var isSplit = run.key === "S", i, ts = r.t[run.s], cnt = run.e - run.s + 1, dur = cnt * 0.2;
+    opLast = putStep(OP, opLast, ts, isSplit ? 100 : 0);
+    var cropVal = 0;
+    var L = [], R = [];
     for(i=run.s;i<=run.e;i++){
-      t = r.t[i];
-      var cut = i === run.s;
+      var fl = faceList(r, i).slice().sort(function(a, b){ return b[2] - a[2]; });
       if(isSplit){
-        var a = o.swap ? ids[1] : ids[0], b = o.swap ? ids[0] : ids[1];
-        put(B, t, xNorm(r.cx[a][i], gs, o.seqW), 0.25, gs.S, cut);
-        put(T, t, xNorm(r.cx[b][i], gs, o.seqW), 0.75, gs.S, cut);
-      } else {
-        var z = zoomAt(o.zmode, o.zmax, t - c.inP, len), g = geom(r.W, r.H, o.seqW, o.seqH, o.seqH * z, o.basis);
-        put(B, t, xNorm(r.cx[ids[0]][i], g, o.seqW), yNorm(med[ids[0]], g, o.seqH), g.S, cut);
+        var two = fl.slice(0, 2).sort(function(a, b){ return a[0] - b[0]; });
+        L.push(two.length === 2 ? two[0] : null); R.push(two.length === 2 ? two[1] : null);
+      } else L.push(fl.length ? fl[0] : null);
+    }
+    if(isSplit){
+      nSplit++; secSplit += dur;
+      fillNull(L, [0.28, 0.45, 0.12]); fillNull(R, [0.72, 0.45, 0.12]);
+      var slots = o.swap ? [R, L] : [L, R], k, info = [];
+      for(k=0;k<2;k++){
+        var S = slots[k], xs = smoothSeries(S.map(function(a){ return a[0]; }), fixed), cyMed = median(S.map(function(a){ return a[1]; })), fs = median(S.map(function(a){ return a[2]; }));
+        var fd = fillS;
+        if(o.zoomOk && o.zf > 0) fd = Math.min(Math.max(o.zf * halfH / (Math.max(fs, 0.04) * r.H), fillS), fillS * 2.4);
+        var g = geom(r.W, r.H, o.seqW, o.seqH, r.H * fd, o.basis);
+        var top = k === 0 ? 0 : halfH, p = top + 0.40 * halfH - cyMed * g.sh + g.sh / 2;
+        var pMin = (k === 0 ? halfH : o.seqH) - g.sh / 2, pMax = (k === 0 ? 0 : halfH) + g.sh / 2;
+        p = Math.min(Math.max(p, pMin), pMax);
+        info.push({xs: xs, g: g, y: p / o.seqH, crop: k === 1 ? Math.min(Math.max((halfH - (p - g.sh / 2)) / g.sh * 100, 0), 100) : 0});
+      }
+      for(i=0;i<cnt;i++){
+        put(B, r.t[run.s + i], xNorm(info[0].xs[i], info[0].g, o.seqW), info[0].y, info[0].g.S, i === 0);
+        put(T, r.t[run.s + i], xNorm(info[1].xs[i], info[1].g, o.seqW), info[1].y, info[1].g.S, i === 0);
+      }
+      cropVal = Math.round(info[1].crop * 100) / 100;
+    } else {
+      nSolo++; secSolo += dur;
+      fillNull(L, [0.5, 0.4, 0.12]);
+      var xsS = smoothSeries(L.map(function(a){ return a[0]; }), fixed), cyS = median(L.map(function(a){ return a[1]; }));
+      for(i=0;i<cnt;i++){
+        var tt = r.t[run.s + i], z = zoomAt(o.zmode, o.zmax, tt - c.inP, len), gg = geom(r.W, r.H, o.seqW, o.seqH, o.seqH * z, o.basis);
+        put(B, tt, xNorm(xsS[i], gg, o.seqW), yNorm(cyS, gg, o.seqH), gg.S, i === 0);
       }
     }
+    crLast = putStep(CR, crLast, ts, cropVal);
   });
-  if(opLast === 100) OP.push((r.t[r.t.length-1] + 0.2).toFixed(3) + ",100");
-  return {base: B.k.join(";"), top: T.k.join(";"), opa: OP.join(";"), nSplit: nSplit, secSplit: secSplit, runs: runs.length};
+  if(opLast === 100) OP.push((r.t[r.t.length - 1] + 0.2).toFixed(3) + ",100");
+  return {base: B.k.join(";"), top: T.k.join(";"), opa: OP.join(";"), crop: CR.join(";"), nSplit: nSplit, secSplit: secSplit, nSolo: nSolo, secSolo: secSolo, runs: runs.length};
 }
 
 async function runReframe(){
@@ -475,43 +514,53 @@ async function runReframe(){
   }
   var seqW = info.w, seqH = info.h, basis = $("sbasis").value, canSplit = canSplitFmt();
   status("Detectando personas…");
-  var res = await runEngine("reframe", {step: 0.2}, clips.map(function(c, i){ return {id: i, path: c.path, start: c.inP, end: c.outP}; }), prog), done = 0;
+  var res = await runEngine("reframe", {step: 0.2}, clips.map(function(c, i){ return {id: i, path: c.path, start: c.inP, end: c.outP}; }), prog), done = 0, nSplitAll = 0, nSoloAll = 0;
   for(var i=0;i<clips.length;i++){
     var c = clips[i], r = res[i];
     status("Aplicando encuadre " + (i+1) + "/" + clips.length);
     if(!r || r.error){ log("Clip " + c.name + ": " + (r ? r.error : "sin datos")); continue; }
     var people = r.K || 0;
-    if($("tmv").value === "fixed" && people){
+    if(!people) log(c.name + ": no encontré caras, centro el encuadre.");
+    var fixed = $("tmv").value === "fixed";
+    var zmode = $("zmv").value, zmax = $("zmax").value / 100;
+    if(mode === "auto" && r.faces && r.faces.length){
+      var cnts = r.faces.map(function(_, k){ return faceList(r, k).length; });
+      var two = cnts.filter(function(x){ return x >= 2; }).length, one = cnts.filter(function(x){ return x === 1; }).length, none = cnts.length - two - one;
+      log(c.name + ": " + (two * 0.2).toFixed(0) + " s con 2 personas en cámara, " + (one * 0.2).toFixed(0) + " s con 1, " + (none * 0.2).toFixed(0) + " s sin caras.");
+      var plan = viewPlan(r, c, {seqW: seqW, seqH: seqH, basis: basis, swap: $("swap").checked, zmode: zmode, zmax: zmax, track: fixed ? "fixed" : "follow", allowSplit: canSplit, zf: ZF[$("smv").value] || 0.16, zoomOk: true});
+      if(plan.nSplit){
+        var dup2 = String(await jsx("dupToTrack(" + c.t + "," + c.c + "," + (c.t+1) + ")"));
+        if(dup2.indexOf("ok:") !== 0) throw new Error("No pude duplicar el clip en V" + (c.t+2) + " (" + dup2 + "). Deja libre esa pista.");
+        var k3 = parseInt(dup2.split(":")[1], 10);
+        var probe = String(await jsx("applyCrop(" + (c.t+1) + "," + k3 + ",'0,0')"));
+        if(probe !== "ok"){
+          log("No pude usar el efecto Crop (" + probe + "): la pantalla dividida irá sin acercamiento extra.");
+          plan = viewPlan(r, c, {seqW: seqW, seqH: seqH, basis: basis, swap: $("swap").checked, zmode: zmode, zmax: zmax, track: fixed ? "fixed" : "follow", allowSplit: canSplit, zf: 0, zoomOk: false});
+        }
+        var a1 = String(await jsx("applyMotion(" + c.t + "," + c.c + ",'" + plan.base + "')"));
+        var b1 = String(await jsx("applyMotion(" + (c.t+1) + "," + k3 + ",'" + plan.top + "')"));
+        var o1 = String(await jsx("applyOpacity(" + (c.t+1) + "," + k3 + ",'" + plan.opa + "')"));
+        var p1 = probe === "ok" ? String(await jsx("applyCrop(" + (c.t+1) + "," + k3 + ",'" + plan.crop + "')")) : "ok";
+        if(a1 !== "ok" || b1 !== "ok" || o1 !== "ok" || p1 !== "ok") throw new Error("Premiere: " + [a1, b1, o1, p1].filter(function(x){ return x !== "ok"; })[0]);
+        log(c.name + ": " + plan.nSplit + " tramo(s) con pantalla dividida (" + plan.secSplit.toFixed(0) + " s) y " + plan.nSolo + " tramo(s) siguiendo a una persona.");
+      } else {
+        var a2 = String(await jsx("applyMotion(" + c.t + "," + c.c + ",'" + plan.base + "')"));
+        if(a2 !== "ok") throw new Error("Premiere: " + a2);
+        log(c.name + ": " + (canSplit ? "no hubo planos con las dos personas, " : "este formato es muy ancho para dividir, ") + "solo sigo a la persona.");
+      }
+      nSplitAll += plan.nSplit; nSoloAll += plan.nSolo;
+      done++; continue;
+    }
+    if(fixed && people){
       for(var kk = 0; kk < people; kk++){
         var mx = median(r.cx[kk]), my = median(r.cy[kk]);
         r.cx[kk] = r.cx[kk].map(function(){ return mx; }); r.cy[kk] = r.cy[kk].map(function(){ return my; });
       }
-      log(c.name + ": cámara fija (sin seguimiento).");
     }
-    if(!people) log(c.name + ": no encontré caras, centro el encuadre.");
-    else if(mode === "auto") log(c.name + ": " + (people >= 2 ? people + " personas → pantalla dividida" : "1 persona → encuadre único"));
-    if(people && r.spk){
-      var tot = r.t.length || 1, sp = r.spk.map(function(a){ return Math.round(100 * a.reduce(function(x, y){ return x + y; }, 0) / tot); });
-      log(c.name + ": " + people + " cara(s) detectada(s) · hablando: " + sp.map(function(p, i){ return "persona " + (i+1) + " " + p + "%"; }).join(", "));
-    }
-    var wantSplit = mode !== "single" && people >= 2;
+    var wantSplit = mode === "split" && people >= 2 && canSplit;
     if(mode === "split" && people < 2) log(c.name + ": no encontré dos personas, uso un hablante.");
-    if(wantSplit && !canSplit){ log(c.name + ": este formato es muy ancho para dividir, uso un hablante."); wantSplit = false; }
-    var dyn = null;
-    if(wantSplit && mode === "auto"){
-      dyn = dynPlan(r, c, {win: $("smv").value === "talk" ? 3 : 0, zmode: $("zmv").value, zmax: $("zmax").value/100, seqW: seqW, seqH: seqH, basis: basis, swap: $("swap").checked});
-      if(!dyn.nSplit){ log(c.name + ": no encontré momentos de diálogo, solo sigo al que habla. Prueba 'Dividida' en modo Dividida para forzarla."); wantSplit = false; dyn = null; }
-    }
-    if(dyn){
-      log(c.name + ": " + dyn.nSplit + " tramo(s) con pantalla dividida (" + dyn.secSplit.toFixed(0) + " s), el resto sigue al que habla.");
-      var dup2 = String(await jsx("dupToTrack(" + c.t + "," + c.c + "," + (c.t+1) + ")"));
-      if(dup2.indexOf("ok:") !== 0) throw new Error("No pude duplicar el clip en V" + (c.t+2) + " (" + dup2 + "). Deja libre esa pista.");
-      var k3 = parseInt(dup2.split(":")[1], 10);
-      var a1 = String(await jsx("applyMotion(" + c.t + "," + c.c + ",'" + dyn.base + "')"));
-      var b1 = String(await jsx("applyMotion(" + (c.t+1) + "," + k3 + ",'" + dyn.top + "')"));
-      var o1 = String(await jsx("applyOpacity(" + (c.t+1) + "," + k3 + ",'" + dyn.opa + "')"));
-      if(a1 !== "ok" || b1 !== "ok" || o1 !== "ok") throw new Error("Premiere: " + (a1 !== "ok" ? a1 : (b1 !== "ok" ? b1 : o1)));
-    } else if(wantSplit){
+    if(mode === "split" && !canSplit) log(c.name + ": este formato es muy ancho para dividir, uso un hablante.");
+    if(wantSplit){
       if(people > 2) log(c.name + ": hay " + people + " personas, uso las dos de la izquierda.");
       var gs = geom(r.W, r.H, seqW, seqH, seqH/2, basis), top = $("swap").checked ? 1 : 0, bot = 1 - top;
       var dup = String(await jsx("dupToTrack(" + c.t + "," + c.c + "," + (c.t+1) + ")"));
@@ -521,14 +570,15 @@ async function runReframe(){
       var b = String(await jsx("applyMotion(" + (c.t+1) + "," + k2 + ",'" + splitKeys(r, bot, 0.75, gs, seqW) + "')"));
       if(a !== "ok" || b !== "ok") throw new Error("Premiere: " + (a !== "ok" ? a : b));
     } else {
-      var spec = singleKeys(r, c, {zmode: $("zmv").value, zmax: $("zmax").value/100, seqW: seqW, seqH: seqH, basis: basis});
+      var spec = singleKeys(r, c, {zmode: zmode, zmax: zmax, seqW: seqW, seqH: seqH, basis: basis});
       var o = String(await jsx("applyMotion(" + c.t + "," + c.c + ",'" + spec + "')"));
       if(o !== "ok") throw new Error("Premiere: " + o);
     }
     done++;
   }
   $("n1").textContent = done; $("l1").textContent = "clips";
-  return "Listo: " + done + " clip(s) reencuadrado(s) a " + $("fmv").value.replace("x", ":") + ".";
+  var extra = nSplitAll || nSoloAll ? " (" + nSplitAll + " tramos divididos, " + nSoloAll + " siguiendo a una persona)" : "";
+  return "Listo: " + done + " clip(s) reencuadrado(s) a " + $("fmv").value.replace("x", ":") + "." + extra;
 }
 
 /* ---------- Momentos virales y hook ---------- */
